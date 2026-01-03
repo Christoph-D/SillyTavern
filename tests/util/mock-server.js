@@ -8,6 +8,8 @@ export class MockServer {
     port;
     /** @type {import('http').Server} */
     server;
+    /** @type {object|null} */
+    lastRequest = null;
 
     /**
      * Creates an instance of MockServer.
@@ -57,6 +59,7 @@ export class MockServer {
                     const body = await readAllChunks(req);
                     const jsonBody = tryParse(body.toString());
                     if (req.method === 'POST' && req.url === '/v1/chat/completions') {
+                        this.lastRequest = jsonBody;
                         const mockResponse = this.handleChatCompletions(jsonBody);
                         res.writeHead(200, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify(mockResponse));
@@ -97,5 +100,27 @@ export class MockServer {
                 resolve();
             });
         });
+    }
+
+    /**
+     * Returns the most recent received request body.
+     * @returns {object|null} The last received request body, or null if no requests were received.
+     */
+    getLastRequest() {
+        return this.lastRequest;
+    }
+
+    /**
+     * Clears the last received request.
+     */
+    clearLastRequest() {
+        this.lastRequest = null;
+    }
+
+    /**
+     * Get the mock server's base URL, including the trailing /v1.
+     */
+    getBaseURL() {
+        return `http://${this.host}:${this.port}/v1`;
     }
 }
