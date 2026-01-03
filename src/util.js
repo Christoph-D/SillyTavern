@@ -49,6 +49,15 @@ export function setConfigFilePath(configFilePath) {
 }
 
 /**
+ * Set the config to the given config object for testing.
+ * @param {string} config A config object
+ */
+export function setConfigForTesting(config) {
+    CONFIG_PATH = ''
+    CACHED_CONFIG = config
+}
+
+/**
  * Returns the config object from the config.yaml file.
  * @returns {object} Config object
  */
