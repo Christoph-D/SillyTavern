@@ -280,6 +280,7 @@ const defaultSettings = {
     snap: false,
     free_extend: false,
     function_tool: false,
+    end_turn: false,
     minimal_prompt_processing: false,
 
     prompts: promptTemplates,
@@ -556,6 +557,7 @@ async function loadSettings() {
     $('#sd_stability_style_preset').val(extension_settings.sd.stability_style_preset);
     $('#sd_huggingface_model_id').val(extension_settings.sd.huggingface_model_id);
     $('#sd_function_tool').prop('checked', extension_settings.sd.function_tool);
+    $('#sd_end_turn').prop('checked', extension_settings.sd.end_turn).prop('disabled', !extension_settings.sd.function_tool);
     $('#sd_bfl_upsampling').prop('checked', extension_settings.sd.bfl_upsampling);
     $('#sd_google_api').val(extension_settings.sd.google_api);
     $('#sd_google_enhance').prop('checked', extension_settings.sd.google_enhance);
@@ -1150,6 +1152,13 @@ async function onComfyTypeChange() {
 
 function onFunctionToolInput() {
     extension_settings.sd.function_tool = !!$(this).prop('checked');
+    saveSettingsDebounced();
+    $('#sd_end_turn').prop('disabled', !extension_settings.sd.function_tool);
+    registerFunctionTool();
+}
+
+function onEndTurnInput() {
+    extension_settings.sd.end_turn = !!$(this).prop('checked');
     saveSettingsDebounced();
     registerFunctionTool();
 }
@@ -5454,6 +5463,21 @@ function registerFunctionTool() {
         return ToolManager.unregisterFunctionTool('GenerateImage');
     }
 
+    const properties = {
+        prompt: {
+            type: 'string',
+            description: extension_settings.sd.prompts[generationMode.TOOL] || promptTemplates[generationMode.TOOL],
+        },
+    };
+
+    if (extension_settings.sd.end_turn) {
+        properties.end_turn = {
+            type: 'boolean',
+            description: 'Set this to true if you generate this image at the end of your turn.',
+            default: false,
+        };
+    }
+
     ToolManager.registerFunctionTool({
         name: 'GenerateImage',
         displayName: 'Generate Image',
@@ -5461,15 +5485,11 @@ function registerFunctionTool() {
             'Generate an image from a given text prompt.',
             'Use when a user asks to generate an image, imagine a concept or an item, send a picture of a scene, a selfie, etc.',
         ].join(' '),
+        endTurn: extension_settings.sd.end_turn,
         parameters: Object.freeze({
             $schema: 'http://json-schema.org/draft-04/schema#',
             type: 'object',
-            properties: {
-                prompt: {
-                    type: 'string',
-                    description: extension_settings.sd.prompts[generationMode.TOOL] || promptTemplates[generationMode.TOOL],
-                },
-            },
+            properties,
             required: [
                 'prompt',
             ],
@@ -5879,6 +5899,7 @@ export async function init() {
     $('#sd_stability_style_preset').on('change', onStabilityStylePresetChange);
     $('#sd_huggingface_model_id').on('input', onHFModelInput);
     $('#sd_function_tool').on('input', onFunctionToolInput);
+    $('#sd_end_turn').on('input', onEndTurnInput);
     $('#sd_bfl_upsampling').on('input', onBflUpsamplingInput);
 
     $('#sd_google_api').on('input', function () {
