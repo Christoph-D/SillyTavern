@@ -29,6 +29,7 @@ import { isTrueBoolean } from './utils.js';
  * @property {ToolInvocation[]} invocations Tool invocations (both successful and failed)
  * @property {Error[]} errors Errors that occurred during tool invocation
  * @property {string[]} stealthCalls Names of stealth tools that were invoked
+ * @property {boolean} endTurn Whether any tool call requested to end the assistant's turn
  */
 
 /**
@@ -41,6 +42,7 @@ import { isTrueBoolean } from './utils.js';
  * @property {function} [formatMessage] - A function to format the tool call message.
  * @property {function} [shouldRegister] - A function to determine if the tool should be registered.
  * @property {boolean} [stealth] - A tool call result will not be shown in the chat. No follow-up generation will be performed.
+ * @property {boolean} [endTurn] - The tool supports ending the assistant's turn via the `end_turn` parameter. When the tool is invoked with `end_turn: true`, all tool calls in the batch are processed normally, then the turn ends without a follow-up generation.
  */
 
 /**
@@ -162,6 +164,12 @@ class ToolDefinition {
     #stealth;
 
     /**
+     * The tool supports ending the assistant's turn via the `end_turn` parameter.
+     * @type {boolean}
+     */
+    #endTurn;
+
+    /**
      * Creates a new ToolDefinition.
      * @param {string} name A unique name for the tool.
      * @param {string} displayName A user-friendly display name for the tool.
@@ -171,8 +179,9 @@ class ToolDefinition {
      * @param {function} formatMessage A function that will be called to format the tool call toast.
      * @param {function} shouldRegister A function that will be called to determine if the tool should be registered.
      * @param {boolean} stealth A tool call result will not be shown in the chat. No follow-up generation will be performed.
+     * @param {boolean} endTurn The tool supports ending the assistant's turn via the `end_turn` parameter.
      */
-    constructor(name, displayName, description, parameters, action, formatMessage, shouldRegister, stealth) {
+    constructor(name, displayName, description, parameters, action, formatMessage, shouldRegister, stealth, endTurn) {
         this.#name = name;
         this.#displayName = displayName;
         this.#description = description;
@@ -181,6 +190,7 @@ class ToolDefinition {
         this.#formatMessage = formatMessage;
         this.#shouldRegister = shouldRegister;
         this.#stealth = stealth;
+        this.#endTurn = endTurn;
     }
 
     /**
@@ -234,6 +244,10 @@ class ToolDefinition {
     get stealth() {
         return this.#stealth;
     }
+
+    get endTurn() {
+        return this.#endTurn;
+    }
 }
 
 /**
@@ -266,7 +280,7 @@ export class ToolManager {
      * Registers a new tool with the tool registry.
      * @param {ToolRegistration} tool The tool to register.
      */
-    static registerFunctionTool({ name, displayName, description, parameters, action, formatMessage, shouldRegister, stealth }) {
+    static registerFunctionTool({ name, displayName, description, parameters, action, formatMessage, shouldRegister, stealth, endTurn }) {
         // Convert WIP arguments
         if (typeof arguments[0] !== 'object') {
             [name, description, parameters, action] = arguments;
@@ -285,6 +299,7 @@ export class ToolManager {
             formatMessage,
             shouldRegister,
             stealth,
+            endTurn,
         );
         this.#tools.set(name, definition);
         console.log('[ToolManager] Registered function tool:', definition);
@@ -356,6 +371,20 @@ export class ToolManager {
 
         const tool = this.#tools.get(name);
         return !!tool.stealth;
+    }
+
+    /**
+     * Checks if a tool supports ending the assistant's turn via the `end_turn` parameter.
+     * @param {string} name The name of the tool to check.
+     * @returns {boolean} Whether the tool supports ending the turn.
+     */
+    static isEndTurnTool(name) {
+        if (!this.#tools.has(name)) {
+            return false;
+        }
+
+        const tool = this.#tools.get(name);
+        return !!tool.endTurn;
     }
 
     /**
@@ -783,6 +812,7 @@ export class ToolManager {
             invocations: [],
             errors: [],
             stealthCalls: [],
+            endTurn: false,
         };
         const toolCalls = ToolManager.#getToolCallsFromData(data);
 
@@ -801,6 +831,14 @@ export class ToolManager {
             const name = toolCall.function.name;
             const displayName = ToolManager.getDisplayName(name);
             const isStealth = ToolManager.isStealthTool(name);
+
+            if (ToolManager.isEndTurnTool(name)) {
+                const parsed = typeof parameters === 'object' && parameters !== null ? parameters : tryParse(parameters);
+                if (parsed?.end_turn === true) {
+                    result.endTurn = true;
+                }
+            }
+
             const message = await ToolManager.formatToolCallMessage(name, parameters);
             const toast = message && toastr.info(message, 'Tool Calling', { timeOut: 0 });
             const toolResult = await ToolManager.invokeFunctionTool(name, parameters);

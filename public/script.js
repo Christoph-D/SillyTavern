@@ -5430,8 +5430,12 @@ export async function Generate(type, { automatic_trigger, force_name2, quiet_pro
                     }
 
                     streamingProcessor = null;
-                    depth = depth + 1;
                     await ToolManager.saveFunctionToolInvocations(invocationResult.invocations);
+                    if (invocationResult.endTurn) {
+                        unblockGeneration(type);
+                        return;
+                    }
+                    depth = depth + 1;
                     return Generate('normal', { automatic_trigger, force_name2, quiet_prompt, quietToLoud, skipWIAN, force_chid, signal, quietImage, quietName, depth }, dryRun);
                 }
             }
@@ -5553,8 +5557,12 @@ export async function Generate(type, { automatic_trigger, force_name2, quiet_pro
                     return;
                 }
 
-                depth = depth + 1;
                 await ToolManager.saveFunctionToolInvocations(invocationResult.invocations);
+                if (invocationResult.endTurn) {
+                    unblockGeneration(type);
+                    return;
+                }
+                depth = depth + 1;
                 return Generate('normal', { automatic_trigger, force_name2, quiet_prompt, quietToLoud, skipWIAN, force_chid, signal, quietImage, quietName, depth }, dryRun);
             }
         }
